@@ -1,10 +1,12 @@
-# Seu código ajustado da aplicação Streamlit
-import streamlit as st
+# api.py
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urlparse, urljoin
-import json
+
+app = FastAPI()
 
 # Função para extrair texto visível e links do URL fornecido
 def scrape_visible_text_and_links_from_url(url):
@@ -46,33 +48,13 @@ def scrape_visible_text_and_links_from_url(url):
 
         return result
     except Exception as e:
-        st.error(f"Erro ao extrair os dados: {e}")
-        return None
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Interface do Streamlit
-def main():
-    st.title("Web Data Scraper")
-
-    # Obter parâmetros de consulta
-    params = st.experimental_get_query_params()
-    url_input = params.get('url', [''])[0]  # Obter o parâmetro 'url' da query string
-
-    # Se a URL não for fornecida via query string, usar entrada de texto
-    if not url_input:
-        url_input = st.text_input("Digite a URL da página web:", "")
-
-    # Se a URL for fornecida, realizar a extração automaticamente
-    if url_input:
-        # Extrair texto visível e links da URL
-        result = scrape_visible_text_and_links_from_url(url_input)
-        if result:
-            st.success("Dados extraídos com sucesso!")
-            st.subheader("Resultado em JSON:")
-            st.json(result)
-        else:
-            st.warning("Falha ao extrair os dados da URL.")
+# Rota principal da API
+@app.get("/scrape")
+def scrape(url: str):
+    result = scrape_visible_text_and_links_from_url(url)
+    if result:
+        return JSONResponse(content=result)
     else:
-        st.warning("Por favor, insira uma URL válida.")
-
-if __name__ == "__main__":
-    main()
+        raise HTTPException(status_code=404, detail="Failed to scrape data from the URL.")
