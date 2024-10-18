@@ -1,12 +1,25 @@
 # api.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urlparse, urljoin
+import os
 
 app = FastAPI()
+
+# Definir a chave de API (idealmente obtida de uma variável de ambiente)
+API_KEY = os.getenv("API_KEY", "6712c16c-5340-8012-af27-67a22f5f2498")
+
+# Criar o esquema de segurança
+security = HTTPBearer()
+
+# Dependência para verificar a chave de API
+def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if credentials.credentials != API_KEY:
+        raise HTTPException(status_code=401, detail="Chave de API inválida ou ausente.")
 
 # Função para extrair texto visível e links do URL fornecido
 def scrape_visible_text_and_links_from_url(url):
@@ -50,11 +63,11 @@ def scrape_visible_text_and_links_from_url(url):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Rota principal da API
+# Rota principal da API com autenticação
 @app.get("/scrape")
-def scrape(url: str):
+def scrape(url: str, credentials: HTTPAuthorizationCredentials = Depends(verify_api_key)):
     result = scrape_visible_text_and_links_from_url(url)
     if result:
         return JSONResponse(content=result)
     else:
-        raise HTTPException(status_code=404, detail="Failed to scrape data from the URL.")
+        raise HTTPException(status_code=404, detail="Falha ao extrair dados da URL.")
