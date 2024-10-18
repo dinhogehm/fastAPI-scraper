@@ -46,12 +46,15 @@ def scrape_visible_text_and_links_from_url(url):
         # Remover espaços em branco múltiplos e novas linhas
         visible_text = re.sub(r'\s+', ' ', visible_text).strip()
 
-        # Extrair todos os links da página
-        links = []
+        # Extrair todos os links da página sem duplicatas
+        links = set()
         for link_tag in soup.find_all('a', href=True):
             href = link_tag.get('href')
             href = urljoin(url, href)  # Resolver URLs relativas
-            links.append(href)
+            links.add(href)
+
+        # Converter o conjunto de links de volta para uma lista
+        links = list(links)
 
         # Criar o objeto JSON
         result = {
