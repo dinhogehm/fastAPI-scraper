@@ -24,45 +24,67 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
 # Função para extrair texto visível e links do URL fornecido
 def scrape_visible_text_and_links_from_url(url):
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        # Remover tags não visíveis
-        for tag in soup(["script", "style", "meta", "link", "noscript", "header", "footer", "aside", "nav", "img"]):
-            tag.extract()
-
-        # Obter o conteúdo do cabeçalho
-        header_content = soup.find("header")
-        header_text = header_content.get_text() if header_content else ""
-
-        # Obter o conteúdo dos parágrafos
-        paragraph_content = soup.find_all("p")
-        paragraph_text = " ".join([p.get_text() for p in paragraph_content])
-
-        # Combinar o texto do cabeçalho e dos parágrafos
-        visible_text = f"{header_text}\n\n{paragraph_text}"
-
-        # Remover espaços em branco múltiplos e novas linhas
-        visible_text = re.sub(r'\s+', ' ', visible_text).strip()
-
-        # Extrair todos os links da página sem duplicatas
-        links = set()
-        for link_tag in soup.find_all('a', href=True):
-            href = link_tag.get('href')
-            href = urljoin(url, href)  # Resolver URLs relativas
-            links.add(href)
-
-        # Converter o conjunto de links de volta para uma lista
-        links = list(links)
-
-        # Criar o objeto JSON
-        result = {
-            "content": visible_text,
-            "links": links
+        headers = {
+            'User-Agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) '
+                'Chrome/58.0.3029.110 Safari/537.3'
+            )
         }
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        # Verificar o tipo de conteúdo
+        content_type = response.headers.get('Content-Type', '')
+        if 'xml' in content_type:
+            # Processar conteúdo XML (como sitemap.xml)
+            soup = BeautifulSoup(response.content, 'xml')
+            # Extrair URLs do sitemap
+            urls = [loc.get_text() for loc in soup.find_all('loc')]
+            result = {
+                "content": "",
+                "links": urls
+            }
+            return result
+        else:
+            # Processar conteúdo HTML normal
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        return result
+            # Remover tags não visíveis
+            for tag in soup(["script", "style", "meta", "link", "noscript", "header", "footer", "aside", "nav", "img"]):
+                tag.extract()
+
+            # Obter o conteúdo do cabeçalho
+            header_content = soup.find("header")
+            header_text = header_content.get_text() if header_content else ""
+
+            # Obter o conteúdo dos parágrafos
+            paragraph_content = soup.find_all("p")
+            paragraph_text = " ".join([p.get_text() for p in paragraph_content])
+
+            # Combinar o texto do cabeçalho e dos parágrafos
+            visible_text = f"{header_text}\n\n{paragraph_text}"
+
+            # Remover espaços em branco múltiplos e novas linhas
+            visible_text = re.sub(r'\s+', ' ', visible_text).strip()
+
+            # Extrair todos os links da página sem duplicatas
+            links = set()
+            for link_tag in soup.find_all('a', href=True):
+                href = link_tag.get('href')
+                href = urljoin(url, href)  # Resolver URLs relativas
+                links.add(href)
+
+            # Converter o conjunto de links de volta para uma lista
+            links = list(links)
+
+            # Criar o objeto JSON
+            result = {
+                "content": visible_text,
+                "links": links
+            }
+
+            return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
