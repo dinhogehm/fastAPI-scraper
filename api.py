@@ -4,13 +4,15 @@ from fastapi.responses import JSONResponse
 import requests
 from bs4 import BeautifulSoup
 import re
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin
 import os
 
 app = FastAPI()
 
 # Definir a chave de API a partir de uma variável de ambiente
 API_KEY = os.getenv("API_KEY")
+if not API_KEY:
+    raise RuntimeError("A variável de ambiente API_KEY não está definida.")
 
 # Criar o esquema de segurança
 security = HTTPBearer()
