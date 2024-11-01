@@ -1,4 +1,3 @@
-# api.py
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
@@ -10,8 +9,8 @@ import os
 
 app = FastAPI()
 
-# Definir a chave de API (idealmente obtida de uma variável de ambiente)
-API_KEY = os.getenv("API_KEY", "6712c16c-5340-8012-af27-67a22f5f2498")
+# Definir a chave de API a partir de uma variável de ambiente
+API_KEY = os.getenv("API_KEY")
 
 # Criar o esquema de segurança
 security = HTTPBearer()
@@ -38,7 +37,7 @@ def scrape_visible_text_and_links_from_url(url):
         content_type = response.headers.get('Content-Type', '')
         if 'xml' in content_type:
             # Processar conteúdo XML (como sitemap.xml)
-            soup = BeautifulSoup(response.content, 'xml')
+            soup = BeautifulSoup(response.content, 'lxml-xml')
             # Extrair URLs do sitemap
             urls = [loc.get_text() for loc in soup.find_all('loc')]
             result = {
