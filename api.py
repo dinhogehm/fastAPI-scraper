@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
-import requests
+import requests  # Certifique-se de que 'requests' está importado
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
@@ -11,7 +11,7 @@ app = FastAPI()
 
 # Definir a chave de API a partir de uma variável de ambiente
 API_KEY = os.getenv("API_KEY")
-SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY")  # Nova variável de ambiente
+SCRAPINGBEE_API_KEY = os.getenv("SCRAPINGBEE_API_KEY")  # Se estiver usando o ScrapingBee
 
 if not API_KEY:
     raise RuntimeError("A variável de ambiente API_KEY não está definida.")
