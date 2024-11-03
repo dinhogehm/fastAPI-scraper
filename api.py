@@ -1,12 +1,13 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
-from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
 import os
 
 from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
+import requests
 
 app = FastAPI()
 
@@ -36,7 +37,6 @@ def scrape_visible_text_and_links_from_url(url):
         }
 
         # Fazer uma requisição HEAD para obter o tipo de conteúdo
-        import requests
         head_response = requests.head(url, headers=headers, allow_redirects=True)
         content_type = head_response.headers.get('Content-Type', '')
 
@@ -61,30 +61,21 @@ def scrape_visible_text_and_links_from_url(url):
                 page.set_extra_http_headers(headers)
                 page.goto(url, timeout=60000)  # Timeout de 60 segundos
                 page.wait_for_load_state("networkidle", timeout=60000)
-                html_content = page.content()
+
+                # Extrair o texto diretamente da página renderizada
+                visible_text = page.inner_text('body')
+
+                # Extrair todos os links
+                links = page.eval_on_selector_all('a[href]', 'elements => elements.map(element => element.href)')
+
                 browser.close()
 
-            soup = BeautifulSoup(html_content, 'html.parser')
-
-            # Remover tags não visíveis (ajustado)
-            for tag in soup(["script", "style", "meta", "link", "noscript", "footer", "aside", "nav", "img"]):
-                tag.extract()
-
-            # Obter todo o texto visível
-            visible_text = soup.get_text(separator=' ', strip=True)
-
-            # Remover espaços em branco múltiplos
+            # Limpar o texto extraído
             visible_text = re.sub(r'\s+', ' ', visible_text).strip()
 
-            # Extrair todos os links da página sem duplicatas
-            links = set()
-            for link_tag in soup.find_all('a', href=True):
-                href = link_tag.get('href')
-                href = urljoin(url, href)  # Resolver URLs relativas
-                links.add(href)
-
-            # Converter o conjunto de links de volta para uma lista
-            links = list(links)
+            # Resolver URLs relativas e remover duplicatas
+            links = [urljoin(url, href) for href in links]
+            links = list(set(links))
 
             # Criar o objeto JSON
             result = {
