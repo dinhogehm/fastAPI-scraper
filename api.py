@@ -66,22 +66,14 @@ def scrape_visible_text_and_links_from_url(url):
 
             soup = BeautifulSoup(html_content, 'html.parser')
 
-            # Remover tags não visíveis
-            for tag in soup(["script", "style", "meta", "link", "noscript", "header", "footer", "aside", "nav", "img"]):
+            # Remover tags não visíveis (ajustado)
+            for tag in soup(["script", "style", "meta", "link", "noscript", "footer", "aside", "nav", "img"]):
                 tag.extract()
 
-            # Obter o conteúdo do cabeçalho
-            header_content = soup.find("header")
-            header_text = header_content.get_text() if header_content else ""
+            # Obter todo o texto visível
+            visible_text = soup.get_text(separator=' ', strip=True)
 
-            # Obter o conteúdo dos parágrafos
-            paragraph_content = soup.find_all("p")
-            paragraph_text = " ".join([p.get_text() for p in paragraph_content])
-
-            # Combinar o texto do cabeçalho e dos parágrafos
-            visible_text = f"{header_text}\n\n{paragraph_text}"
-
-            # Remover espaços em branco múltiplos e novas linhas
+            # Remover espaços em branco múltiplos
             visible_text = re.sub(r'\s+', ' ', visible_text).strip()
 
             # Extrair todos os links da página sem duplicatas
