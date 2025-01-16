@@ -27,3 +27,6 @@ class StatusResponse(BaseModel):
     id: str
     status: ProcessingStatus
     message: Optional[str] = None
+    content: Optional[str] = None
+    links: Optional[List[str]] = None
+    error: Optional[str] = None

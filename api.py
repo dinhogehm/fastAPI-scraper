@@ -59,5 +59,8 @@ async def get_status(
     return StatusResponse(
         id=task.id,
         status=task.status,
-        message="Erro: " + task.error if task.error else None
+        message="Erro: " + task.error if task.error else "Processamento concluído com sucesso" if task.status == "completed" else None,
+        content=task.content if task.status == "completed" else None,
+        links=task.links if task.status == "completed" else None,
+        error=task.error
     )
