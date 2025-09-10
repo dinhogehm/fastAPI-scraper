@@ -166,10 +166,9 @@ async def scrape_url(request: ScrapeRequest, api_key: str = Depends(verify_api_k
         )
         
         return ScrapeResponse(
-            task_id=task_id,
+            id=task_id,
             status="pending",
             message=f"Scraping iniciado para {request.url} (limite: {request.limit} páginas)",
-            url=str(request.url),
             limit=request.limit,
             processed_count=0,
             queue_size=0
