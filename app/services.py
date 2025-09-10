@@ -1,12 +1,13 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Set
 import asyncio
 import uuid
 from datetime import datetime
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 from playwright.async_api import async_playwright
 import aiohttp
 from langdetect import detect
+import xml.etree.ElementTree as ET
 from app.models import ScrapeResult, ProcessingStatus, ScrapeResponse
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,9 @@ logger = logging.getLogger(__name__)
 class ScrapingService:
     def __init__(self):
         self._tasks: Dict[str, ScrapeResult] = {}
+        self._processing_queues: Dict[str, List[str]] = {}
+        self._processed_urls: Dict[str, Set[str]] = {}
+        self._all_content: Dict[str, List[dict]] = {}
 
     def get_task(self, task_id: str) -> Optional[ScrapeResponse]:
         """
@@ -28,25 +32,39 @@ class ScrapingService:
         task = self._tasks.get(task_id)
         if not task:
             return None
+        
+        queue_size = len(self._processing_queues.get(task_id, []))
+        processed_count = task.processed_count or 0
+        
+        message = "Processamento concluído com sucesso"
+        if task.status == ProcessingStatus.PROCESSING:
+            message = f"Processando... {processed_count}/{task.limit or 10} páginas. Fila: {queue_size}"
+        elif task.error:
+            message = "Erro: " + task.error
+        elif task.status == ProcessingStatus.PENDING:
+            message = "Processamento iniciado"
             
         return ScrapeResponse(
             id=task.id,
             status=task.status.value,
-            message="Processamento concluído com sucesso" if task.status == ProcessingStatus.COMPLETED 
-                   else "Erro: " + task.error if task.error 
-                   else "Processamento em andamento",
+            message=message,
             content=task.content if task.status == ProcessingStatus.COMPLETED else None,
             links=task.links if task.status == ProcessingStatus.COMPLETED else None,
-            error=task.error
+            error=task.error,
+            limit=task.limit,
+            processed_count=processed_count,
+            queue_size=queue_size,
+            all_content=task.all_content if task.status == ProcessingStatus.COMPLETED else None
         )
 
-    async def start_scraping(self, url: str, callback_url: Optional[str] = None) -> str:
+    async def start_scraping(self, url: str, callback_url: Optional[str] = None, limit: int = 10) -> str:
         """
-        Inicia o processo de scraping de uma URL.
+        Inicia o processo de scraping de uma URL com sistema de fila.
         
         Args:
             url: URL para fazer scraping
             callback_url: URL opcional para webhook de notificação
+            limit: Limite máximo de páginas a processar
             
         Returns:
             str: ID da tarefa criada
@@ -58,32 +76,80 @@ class ScrapingService:
             id=task_id,
             url=str(url),
             status=ProcessingStatus.PENDING,
-            created_at=datetime.now()
+            created_at=datetime.now(),
+            limit=limit,
+            processed_count=0
         )
         
+        # Inicializa estruturas de controle da fila
+        self._processing_queues[task_id] = []
+        self._processed_urls[task_id] = set()
+        self._all_content[task_id] = []
+        
         # Inicia o processamento em background
-        asyncio.create_task(self.process_url(task_id, str(url), str(callback_url) if callback_url else None))
+        asyncio.create_task(self.process_queue(task_id, str(url), str(callback_url) if callback_url else None))
         
         return task_id
 
-    async def process_url(self, task_id: str, url: str, callback_url: Optional[str] = None):
-        """Processa uma URL e atualiza o status da tarefa."""
+    async def process_queue(self, task_id: str, initial_url: str, callback_url: Optional[str] = None):
+        """Processa a fila de URLs iterativamente até atingir o limite."""
         try:
             self._tasks[task_id].status = ProcessingStatus.PROCESSING
             
-            # Executa o scraping
-            result = await self._scrape_url(url)
+            # Busca arquivos centralizadores primeiro
+            centralized_urls = await self._find_centralized_urls(initial_url)
             
-            # Atualiza a tarefa com o resultado
+            # Adiciona URLs centralizadas à fila
+            if centralized_urls:
+                self._processing_queues[task_id].extend(centralized_urls)
+                logger.info(f"Encontrados {len(centralized_urls)} URLs em arquivos centralizadores")
+            
+            # Adiciona URL inicial à fila se não estiver nos centralizadores
+            if initial_url not in centralized_urls:
+                self._processing_queues[task_id].insert(0, initial_url)
+            
             task = self._tasks[task_id]
-            task.status = ProcessingStatus.COMPLETED
-            task.content = result["content"]
-            task.links = result["links"]
-            task.completed_at = datetime.now()
+            limit = task.limit or 10
             
-            # Envia callback se necessário
-            if callback_url:
-                await self._send_callback(callback_url, task)
+            # Processa URLs da fila até atingir o limite
+            while (self._processing_queues[task_id] and 
+                   task.processed_count < limit):
+                
+                current_url = self._processing_queues[task_id].pop(0)
+                
+                # Evita processar URLs duplicadas
+                if current_url in self._processed_urls[task_id]:
+                    continue
+                
+                self._processed_urls[task_id].add(current_url)
+                
+                try:
+                    # Processa a URL atual
+                    result = await self._scrape_url(current_url)
+                    
+                    # Adiciona conteúdo à lista completa
+                    self._all_content[task_id].append({
+                        "url": current_url,
+                        "content": result["content"],
+                        "links_found": len(result["links"])
+                    })
+                    
+                    # Adiciona novos links à fila (se ainda não processados)
+                    for link in result["links"]:
+                        if (link not in self._processed_urls[task_id] and 
+                            link not in self._processing_queues[task_id] and
+                            len(self._processing_queues[task_id]) + task.processed_count < limit):
+                            self._processing_queues[task_id].append(link)
+                    
+                    task.processed_count += 1
+                    logger.info(f"Processada {task.processed_count}/{limit}: {current_url}")
+                    
+                except Exception as e:
+                    logger.error(f"Erro ao processar URL {current_url}: {str(e)}")
+                    continue
+            
+            # Finaliza a tarefa
+            await self._finalize_task(task_id, callback_url)
                 
         except Exception as e:
             logger.error(f"Error processing task {task_id}: {str(e)}")
@@ -97,6 +163,129 @@ class ScrapingService:
                     await self._send_callback(callback_url, task)
                 except Exception as e:
                     logger.error(f"Erro ao enviar callback: {str(e)}")
+    
+    async def _find_centralized_urls(self, base_url: str) -> List[str]:
+        """Busca por arquivos centralizadores de links (llm.txt e sitemap.xml)."""
+        centralized_urls = []
+        
+        try:
+            from urllib.parse import urljoin, urlparse
+            parsed_url = urlparse(base_url)
+            base_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # Lista de arquivos centralizadores para verificar
+            centralized_files = [
+                "/llm.txt",
+                "/sitemap.xml",
+                "/robots.txt"  # Pode conter referências a sitemaps
+            ]
+            
+            for file_path in centralized_files:
+                try:
+                    file_url = urljoin(base_domain, file_path)
+                    logger.info(f"Verificando arquivo centralizador: {file_url}")
+                    
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                        async with session.get(file_url) as response:
+                            if response.status == 200:
+                                content = await response.text()
+                                
+                                if file_path.endswith('.txt'):
+                                    # Para arquivos .txt, cada linha é uma URL
+                                    urls = self._parse_text_file(content, base_domain)
+                                    centralized_urls.extend(urls)
+                                    logger.info(f"Encontradas {len(urls)} URLs em {file_url}")
+                                    
+                                elif file_path.endswith('.xml'):
+                                    # Para sitemaps XML
+                                    urls = self._parse_sitemap_xml(content)
+                                    centralized_urls.extend(urls)
+                                    logger.info(f"Encontradas {len(urls)} URLs em {file_url}")
+                                    
+                except Exception as e:
+                    logger.debug(f"Arquivo {file_url} não encontrado ou inacessível: {str(e)}")
+                    continue
+                    
+        except Exception as e:
+            logger.error(f"Erro ao buscar arquivos centralizadores: {str(e)}")
+            
+        return list(set(centralized_urls))  # Remove duplicatas
+    
+    def _parse_text_file(self, content: str, base_domain: str) -> List[str]:
+        """Extrai URLs de arquivos de texto."""
+        urls = []
+        
+        for line in content.strip().split('\n'):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                # Se a linha não começa com http, assume que é relativa
+                if not line.startswith(('http://', 'https://')):
+                    line = urljoin(base_domain, line)
+                urls.append(line)
+                
+        return urls
+    
+    def _parse_sitemap_xml(self, content: str) -> List[str]:
+        """Extrai URLs de sitemaps XML."""
+        urls = []
+        
+        try:
+            root = ET.fromstring(content)
+            
+            # Namespace comum para sitemaps
+            namespaces = {
+                'sitemap': 'http://www.sitemaps.org/schemas/sitemap/0.9'
+            }
+            
+            # Busca por elementos <url><loc>
+            for url_elem in root.findall('.//sitemap:url/sitemap:loc', namespaces):
+                if url_elem.text:
+                    urls.append(url_elem.text.strip())
+            
+            # Se não encontrou com namespace, tenta sem
+            if not urls:
+                for url_elem in root.findall('.//loc'):
+                    if url_elem.text:
+                        urls.append(url_elem.text.strip())
+                        
+        except ET.ParseError as e:
+            logger.error(f"Erro ao parsear XML do sitemap: {str(e)}")
+            
+        return urls
+    
+    async def _finalize_task(self, task_id: str, callback_url: Optional[str] = None):
+        """Finaliza uma tarefa de scraping."""
+        task = self._tasks[task_id]
+        
+        # Combina todo o conteúdo processado
+        all_content_text = "\n\n".join([
+            f"=== {item['url']} ===\n{item['content']}"
+            for item in self._all_content[task_id]
+        ])
+        
+        # Coleta todos os links únicos encontrados
+        all_links = set()
+        for item in self._all_content[task_id]:
+            # Extrai links do conteúdo se necessário
+            pass
+        
+        # Atualiza a tarefa final
+        task.status = ProcessingStatus.COMPLETED
+        task.content = all_content_text
+        task.links = list(all_links) if all_links else []
+        task.all_content = self._all_content[task_id]
+        task.completed_at = datetime.now()
+        
+        # Limpa estruturas temporárias
+        self._processing_queues.pop(task_id, None)
+        self._processed_urls.pop(task_id, None)
+        # Mantém _all_content para consulta posterior
+        
+        # Envia callback se necessário
+        if callback_url:
+            await self._send_callback(callback_url, task)
+            
+        logger.info(f"Tarefa {task_id} finalizada: {task.processed_count} páginas processadas")
 
     async def _scrape_url(self, url: str) -> dict:
         """

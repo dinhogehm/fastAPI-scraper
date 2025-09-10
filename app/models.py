@@ -16,15 +16,18 @@ class ScrapeRequest(BaseModel):
     Attributes:
         url: URL da página a ser processada
         callback_url: URL opcional para receber notificação quando o processamento for concluído
+        limit: Limite máximo de páginas a serem processadas (padrão: 10)
     """
     url: HttpUrl
     callback_url: Optional[HttpUrl] = None
+    limit: Optional[int] = 10
     
     class Config:
         json_schema_extra = {
             "example": {
                 "url": "https://crmpiperun.com",
-                "callback_url": "https://your-callback-url.com/webhook"
+                "callback_url": "https://your-callback-url.com/webhook",
+                "limit": 500
             }
         }
 
@@ -37,6 +40,10 @@ class ScrapeResult(BaseModel):
     error: Optional[str] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
+    limit: Optional[int] = 10
+    processed_count: Optional[int] = 0
+    queue_size: Optional[int] = 0
+    all_content: Optional[List[dict]] = None
 
 class ScrapeResponse(BaseModel):
     """
@@ -49,6 +56,10 @@ class ScrapeResponse(BaseModel):
         content: Conteúdo extraído da página (disponível apenas quando completed)
         links: Lista de links encontrados na página (disponível apenas quando completed)
         error: Detalhes do erro, se houver
+        limit: Limite máximo de páginas configurado
+        processed_count: Número de páginas já processadas
+        queue_size: Tamanho atual da fila de processamento
+        all_content: Lista com todo o conteúdo extraído de todas as páginas
     """
     id: str
     status: str
@@ -56,6 +67,10 @@ class ScrapeResponse(BaseModel):
     content: Optional[str] = None
     links: Optional[List[str]] = None
     error: Optional[str] = None
+    limit: Optional[int] = None
+    processed_count: Optional[int] = None
+    queue_size: Optional[int] = None
+    all_content: Optional[List[dict]] = None
     
     class Config:
         json_schema_extra = {

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from typing import Optional
+from urllib.parse import urlparse
 from app.models import ScrapeRequest, ScrapeResponse
 from app.services import ScrapingService
 import os
@@ -120,7 +121,7 @@ async def verify_api_key(authorization: str = Header(...)):
                     "example": {
                         "id": "53473fca-bd52-4ce9-bc5f-c20a0b7436ef",
                         "status": "pending",
-                        "message": "Processamento iniciado com sucesso",
+                        "message": "Processamento iniciado com sucesso (limite: 10 páginas)",
                         "content": None,
                         "links": None,
                         "error": None
@@ -139,12 +140,44 @@ async def verify_api_key(authorization: str = Header(...)):
     }
 )
 async def scrape_url(request: ScrapeRequest, api_key: str = Depends(verify_api_key)):
-    task_id = await scraping_service.start_scraping(request.url, request.callback_url)
-    return ScrapeResponse(
-        id=task_id,
-        status="pending",
-        message="Processamento iniciado com sucesso"
-    )
+    """
+    Inicia o processo de scraping de uma URL com sistema de fila.
+    
+    - **url**: URL do site para fazer scraping
+    - **callback_url**: URL opcional para receber notificação quando o scraping for concluído
+    - **limit**: Limite máximo de páginas a processar (padrão: 10)
+    
+    O sistema busca automaticamente por arquivos centralizadores (llm.txt, sitemap.xml)
+    e processa URLs em fila até atingir o limite especificado.
+    
+    Retorna um task_id que pode ser usado para verificar o status do scraping.
+    """
+    try:
+        # Valida a URL
+        parsed_url = urlparse(str(request.url))
+        if not parsed_url.scheme or not parsed_url.netloc:
+            raise HTTPException(status_code=400, detail="URL inválida")
+        
+        # Inicia o scraping com limite
+        task_id = await scraping_service.start_scraping(
+            str(request.url), 
+            str(request.callback_url) if request.callback_url else None,
+            request.limit
+        )
+        
+        return ScrapeResponse(
+            task_id=task_id,
+            status="pending",
+            message=f"Scraping iniciado para {request.url} (limite: {request.limit} páginas)",
+            url=str(request.url),
+            limit=request.limit,
+            processed_count=0,
+            queue_size=0
+        )
+        
+    except Exception as e:
+        logger.error(f"Erro ao iniciar scraping: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
 @app.get("/status/{task_id}", response_model=ScrapeResponse,
     description="Verifica o status de uma tarefa de scraping",
