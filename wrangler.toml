@@ -1,0 +1,59 @@
+# Configuração do Cloudflare Workers para o FastAPI Multi-tenant Scraper
+name = "fastapi-multitenant-scraper"
+main = "cloudflare_worker_main.js"
+compatibility_date = "2024-01-15"
+# compatibility_flags = ["python_workers"]  # Removido pois agora usamos JavaScript
+
+# Configurações do Worker
+[env.production]
+name = "fastapi-multitenant-scraper-prod"
+
+[env.staging]
+name = "fastapi-multitenant-scraper-staging"
+
+# KV Namespaces para armazenamento
+[[kv_namespaces]]
+binding = "TASKS_KV"
+id = "c878c8c5208d473da0a8669a0134d63b"
+
+[[kv_namespaces]]
+binding = "API_KEYS_KV"
+id = "d95ee59a362949f098c44617f9cfb359"
+
+# Variáveis de ambiente
+[vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+MAX_SCRAPING_DEPTH = "3"
+MAX_PAGES_PER_REQUEST = "50"
+REQUEST_TIMEOUT = "30"
+
+# Configurações de recursos
+[placement]
+mode = "smart"
+
+# Limites e configurações
+[limits]
+cpu_ms = 30000
+memory_mb = 128
+
+# Triggers e rotas - usando domínio padrão do Cloudflare Workers
+# [[routes]]
+# pattern = "your-domain.com/*"
+# zone_name = "your-domain.com"
+
+# Configurações de desenvolvimento
+[env.development]
+name = "fastapi-multitenant-scraper-dev"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+
+# Configurações de build
+[build]
+command = "echo 'No build step required for Python Workers'"
+
+# Configurações de observabilidade
+[observability]
+enabled = true

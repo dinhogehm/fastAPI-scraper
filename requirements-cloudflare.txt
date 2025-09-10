@@ -1,0 +1,35 @@
+# Dependências para Cloudflare Workers
+# Estas são as versões compatíveis com o ambiente Pyodide do Cloudflare Workers
+
+# Framework principal
+fastapi==0.104.1
+
+# Cliente HTTP assíncrono (compatível com Workers)
+httpx==0.25.2
+
+# Validação de dados
+pydantic==2.5.0
+
+# Utilitários
+typing-extensions==4.8.0
+
+# Dependências do FastAPI
+starlette==0.27.0
+anyio==4.0.0
+sniffio==1.3.0
+idna==3.4
+certifi==2023.7.22
+h11==0.14.0
+httpcore==1.0.2
+
+# Nota: As seguintes dependências NÃO são necessárias no Cloudflare Workers:
+# - uvicorn (substituído pelo servidor ASGI integrado)
+# - requests (substituído por httpx)
+# - beautifulsoup4 (pode ser adicionado se necessário, mas aumenta o tamanho)
+# - lxml (não compatível com Pyodide)
+
+# Para desenvolvimento local, você pode usar:
+# pip install -r requirements-cloudflare.txt
+
+# Para deploy no Cloudflare Workers, use:
+# pywrangler deploy

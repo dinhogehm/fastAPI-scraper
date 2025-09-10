@@ -1,0 +1,84 @@
+{
+  "api_keys": {
+    "test_key_123": {
+      "tenant_id": "tenant_1",
+      "user_id": "user_1",
+      "name": "Usuário de Teste 1",
+      "created_at": "2025-09-10T15:26:11.832043",
+      "active": true,
+      "permissions": [
+        "scrape",
+        "status",
+        "stats"
+      ]
+    },
+    "demo_key_456": {
+      "tenant_id": "tenant_1",
+      "user_id": "user_2",
+      "name": "Usuário de Teste 2",
+      "created_at": "2025-09-10T15:26:11.832049",
+      "active": true,
+      "permissions": [
+        "scrape",
+        "status"
+      ]
+    },
+    "prod_key_789": {
+      "tenant_id": "tenant_2",
+      "user_id": "user_3",
+      "name": "Usuário de Produção",
+      "created_at": "2025-09-10T15:26:11.832051",
+      "active": true,
+      "permissions": [
+        "scrape",
+        "status",
+        "stats"
+      ]
+    },
+    "admin_key_000": {
+      "tenant_id": "admin",
+      "user_id": "admin_1",
+      "name": "Administrador",
+      "created_at": "2025-09-10T15:26:11.832052",
+      "active": true,
+      "permissions": [
+        "scrape",
+        "status",
+        "stats",
+        "admin"
+      ]
+    }
+  },
+  "tenants": {
+    "tenant_1": {
+      "name": "Empresa A",
+      "plan": "premium",
+      "rate_limits": {
+        "requests_per_minute": 30,
+        "max_concurrent_tasks": 8
+      },
+      "created_at": "2025-09-10T15:26:11.832053",
+      "active": true
+    },
+    "tenant_2": {
+      "name": "Empresa B",
+      "plan": "basic",
+      "rate_limits": {
+        "requests_per_minute": 15,
+        "max_concurrent_tasks": 3
+      },
+      "created_at": "2025-09-10T15:26:11.832053",
+      "active": true
+    },
+    "admin": {
+      "name": "Administração",
+      "plan": "unlimited",
+      "rate_limits": {
+        "requests_per_minute": 1000,
+        "max_concurrent_tasks": 50
+      },
+      "created_at": "2025-09-10T15:26:11.832054",
+      "active": true
+    }
+  }
+}

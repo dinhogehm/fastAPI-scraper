@@ -15,10 +15,12 @@ class ScrapeRequest(BaseModel):
     
     Attributes:
         url: URL da página a ser processada
+        knowledge_base_id: ID da base de conhecimento que identifica o tenant/conta
         callback_url: URL opcional para receber notificação quando o processamento for concluído
         limit: Limite máximo de páginas a serem processadas (padrão: 10)
     """
     url: HttpUrl
+    knowledge_base_id: str
     callback_url: Optional[HttpUrl] = None
     limit: Optional[int] = 10
     
@@ -26,6 +28,7 @@ class ScrapeRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "url": "https://crmpiperun.com",
+                "knowledge_base_id": "kb_empresa_a_001",
                 "callback_url": "https://your-callback-url.com/webhook",
                 "limit": 500
             }
