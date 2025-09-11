@@ -23,6 +23,8 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxtst6 \
     fonts-liberation \
+    fonts-unifont \
+    fonts-ubuntu \
     libxml2-dev \
     libxslt-dev \
     libssl-dev \
@@ -36,8 +38,8 @@ WORKDIR /app
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Instalar navegadores do Playwright
-RUN python -m playwright install --with-deps chromium
+# Instalar navegadores do Playwright (sem --with-deps, já instalamos deps via apt)
+RUN python -m playwright install chromium
 
 # Copiar o código da aplicação
 COPY . .
