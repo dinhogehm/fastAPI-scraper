@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     fonts-liberation \
     fonts-unifont \
-    fonts-ubuntu \
+    fonts-dejavu-core \
     libxml2-dev \
     libxslt-dev \
     libssl-dev \
