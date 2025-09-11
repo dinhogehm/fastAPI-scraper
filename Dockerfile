@@ -33,11 +33,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copiar e instalar dependências Python
-COPY requirements.txt .
+COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Instalar navegadores do Playwright
-RUN playwright install --with-deps chromium
+RUN python -m playwright install --with-deps chromium
 
 # Copiar o código da aplicação
 COPY . .
